@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Drama, UserPlus, Trash2, Save, LogOut, Calendar, Clock, Infinity, CheckCircle, XCircle } from 'lucide-react';
 
 export default function UserManager() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -57,17 +56,14 @@ export default function UserManager() {
       });
 
       if (response.ok) {
-        setIsLoggedIn(true);
         setShowLogin(false);
       } else {
         localStorage.removeItem('auth_token');
         setAuthToken(null);
-        setIsLoggedIn(false);
         setShowLogin(true);
       }
     } catch (error) {
       console.error('Erro ao validar token:', error);
-      setIsLoggedIn(false);
       setShowLogin(true);
     }
   }, []);
@@ -114,7 +110,6 @@ export default function UserManager() {
         localStorage.setItem('auth_token', data.token);
         setAuthToken(data.token);
         setShowLogin(false);
-        setTimeout(() => setIsLoggedIn(true), 300);
         setError('');
         setEmail('');
         setPassword('');
@@ -146,12 +141,9 @@ export default function UserManager() {
 
     localStorage.removeItem('auth_token');
     setAuthToken(null);
-    setIsLoggedIn(false);
-    setTimeout(() => {
-      setShowLogin(true);
-      setEmail('');
-      setPassword('');
-    }, 300);
+    setShowLogin(true);
+    setEmail('');
+    setPassword('');
   };
 
   const addUser = async () => {
