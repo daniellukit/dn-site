@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Drama, UserPlus, Trash2, Save, LogOut, Calendar, Clock, Infinity, CheckCircle, XCircle } from 'lucide-react';
 
 export default function UserManager() {
@@ -18,24 +18,6 @@ export default function UserManager() {
   const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token'));
   const [isLoading, setIsLoading] = useState(false);
 
-  // Carregar dados ao iniciar
-  useEffect(() => {
-    // Validar token ao carregar
-    if (authToken) {
-      validateToken(authToken);
-      fetchUsersFromServer();
-    }
-    loadData();
-    const interval = setInterval(checkExpirations, 60000);
-    const userInterval = setInterval(() => {
-      if (authToken) fetchUsersFromServer();
-    }, 30000); // Sincronizar a cada 30s
-    return () => {
-      clearInterval(interval);
-      clearInterval(userInterval);
-    };
-  }, [authToken]);
-
   const loadData = () => {
     try {
       const savedUsers = localStorage.getItem('roblox_users');
@@ -47,9 +29,9 @@ export default function UserManager() {
     }
   };
 
-  const fetchUsersFromServer = async () => {
+  const fetchUsersFromServer = useCallback(async () => {
     if (!authToken) return;
-    
+
     try {
       const [usersRes, farmRes] = await Promise.all([
         fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/users`, {
@@ -64,7 +46,7 @@ export default function UserManager() {
         const data = await usersRes.json();
         setUsers(data.users);
       }
-      
+
       if (farmRes.ok) {
         const data = await farmRes.json();
         setUsersFarm(data.usersFarm);
@@ -72,11 +54,54 @@ export default function UserManager() {
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
     }
-  };
+  }, [authToken]);
+
+  const validateToken = useCallback(async (token) => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/validate-token`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        setIsLoggedIn(true);
+        setShowLogin(false);
+      } else {
+        localStorage.removeItem('auth_token');
+        setAuthToken(null);
+        setIsLoggedIn(false);
+        setShowLogin(true);
+      }
+    } catch (error) {
+      console.error('Erro ao validar token:', error);
+      setIsLoggedIn(false);
+      setShowLogin(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authToken) {
+      validateToken(authToken);
+      fetchUsersFromServer();
+    }
+    loadData();
+    const interval = setInterval(checkExpirations, 60000);
+    const userInterval = setInterval(() => {
+      if (authToken) fetchUsersFromServer();
+    }, 30000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(userInterval);
+    };
+  }, [authToken, fetchUsersFromServer, validateToken]);
 
   const calculateExpiration = (duration) => {
     const now = new Date();
-    switch(duration) {
+    switch (duration) {
       case 'daily':
         return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
       case 'weekly':
@@ -92,59 +117,32 @@ export default function UserManager() {
 
   const checkExpirations = () => {
     const now = new Date();
-    
+
     setUsers(prev => {
       const validUsers = prev.filter(user => {
         if (!user.expiration) return true;
         return new Date(user.expiration) > now;
       });
-      
+
       if (validUsers.length !== prev.length) {
         localStorage.setItem('roblox_users', JSON.stringify(validUsers));
       }
-      
+
       return validUsers;
     });
-    
+
     setUsersFarm(prev => {
       const validUsersFarm = prev.filter(user => {
         if (!user.expiration) return true;
         return new Date(user.expiration) > now;
       });
-      
+
       if (validUsersFarm.length !== prev.length) {
         localStorage.setItem('roblox_usersfarm', JSON.stringify(validUsersFarm));
       }
-      
+
       return validUsersFarm;
     });
-  };
-
-  const validateToken = async (token) => {
-    try {
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/validate-token`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      
-      if (response.ok) {
-        setIsLoggedIn(true);
-        setShowLogin(false);
-      } else {
-        localStorage.removeItem('auth_token');
-        setAuthToken(null);
-        setIsLoggedIn(false);
-        setShowLogin(true);
-      }
-    } catch (error) {
-      console.error('Erro ao validar token:', error);
-      setIsLoggedIn(false);
-      setShowLogin(true);
-    }
   };
 
   const handleLogin = async () => {
@@ -223,7 +221,7 @@ export default function UserManager() {
     const list = activeTab;
     const username = list === 'users' ? newUser.trim() : newUserFarm.trim();
     const duration = list === 'users' ? selectedDuration : selectedDurationFarm;
-    
+
     if (!username) {
       alert('Por favor, insira um username');
       return;
@@ -260,7 +258,7 @@ export default function UserManager() {
 
   const removeUser = async (list, username) => {
     if (!window.confirm(`Tem certeza que deseja remover ${username}?`)) return;
-    
+
     try {
       const endpoint = list === 'users' ? `/api/users/${username}` : `/api/usersfarm/${username}`;
       const response = await fetch(
@@ -286,22 +284,22 @@ export default function UserManager() {
 
   const formatTimeRemaining = (expiration) => {
     if (!expiration) return 'Vitalício';
-    
+
     const now = new Date();
     const exp = new Date(expiration);
     const diff = exp - now;
-    
+
     if (diff <= 0) return 'Expirado';
-    
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
+
     if (days > 0) return `${days}d ${hours}h`;
     return `${hours}h`;
   };
 
   const getDurationIcon = (duration) => {
-    switch(duration) {
+    switch (duration) {
       case 'daily': return <Clock className="w-4 h-4" />;
       case 'weekly': return <Calendar className="w-4 h-4" />;
       case 'monthly': return <Calendar className="w-4 h-4" />;
@@ -311,7 +309,7 @@ export default function UserManager() {
   };
 
   const getDurationColor = (duration) => {
-    switch(duration) {
+    switch (duration) {
       case 'daily': return 'text-yellow-400';
       case 'weekly': return 'text-blue-400';
       case 'monthly': return 'text-purple-400';
@@ -322,20 +320,18 @@ export default function UserManager() {
 
   const exportToGitHub = async () => {
     setSaveStatus('salvando');
-    
+
     const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN || '';
     const REPO_OWNER = 'Aephic';
     const REPO_NAME = 'dnmenu';
     const BRANCH = 'main';
-    
+
     try {
-      // Preparar conteúdo
       const usersContent = users.map(u => u.username).join('\n');
       const usersFarmContent = usersFarm.map(u => u.username).join('\n');
-      
+
       console.log('Iniciando sincronização com GitHub...');
-      
-      // Obter SHA atual do arquivo users
+
       const usersGetResponse = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
         {
@@ -345,17 +341,16 @@ export default function UserManager() {
           }
         }
       );
-      
+
       if (!usersGetResponse.ok) {
         const errorText = await usersGetResponse.text();
         console.error('Erro ao buscar users:', errorText);
         throw new Error(`Erro ao buscar arquivo users: ${usersGetResponse.status}`);
       }
-      
+
       const usersData = await usersGetResponse.json();
       console.log('SHA do arquivo users obtido:', usersData.sha);
-      
-      // Atualizar arquivo users
+
       const usersPutResponse = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
         {
@@ -373,16 +368,15 @@ export default function UserManager() {
           })
         }
       );
-      
+
       if (!usersPutResponse.ok) {
         const errorText = await usersPutResponse.text();
         console.error('Erro ao atualizar users:', errorText);
         throw new Error(`Erro ao atualizar users: ${usersPutResponse.status}`);
       }
-      
+
       console.log('Arquivo users atualizado com sucesso');
-      
-      // Obter SHA atual do arquivo usersfarm
+
       const usersFarmGetResponse = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
         {
@@ -392,17 +386,16 @@ export default function UserManager() {
           }
         }
       );
-      
+
       if (!usersFarmGetResponse.ok) {
         const errorText = await usersFarmGetResponse.text();
         console.error('Erro ao buscar usersfarm:', errorText);
         throw new Error(`Erro ao buscar arquivo usersfarm: ${usersFarmGetResponse.status}`);
       }
-      
+
       const usersFarmData = await usersFarmGetResponse.json();
       console.log('SHA do arquivo usersfarm obtido:', usersFarmData.sha);
-      
-      // Atualizar arquivo usersfarm
+
       const usersFarmPutResponse = await fetch(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
         {
@@ -420,16 +413,16 @@ export default function UserManager() {
           })
         }
       );
-      
+
       if (!usersFarmPutResponse.ok) {
         const errorText = await usersFarmPutResponse.text();
         console.error('Erro ao atualizar usersfarm:', errorText);
         throw new Error(`Erro ao atualizar usersfarm: ${usersFarmPutResponse.status}`);
       }
-      
+
       console.log('Arquivo usersfarm atualizado com sucesso');
       console.log('Sincronização completa!');
-      
+
       setSaveStatus('salvo');
       setTimeout(() => setSaveStatus(''), 3000);
     } catch (error) {
@@ -445,9 +438,9 @@ export default function UserManager() {
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center p-4 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gray-800 rounded-full opacity-10 blur-3xl animate-pulse"></div>
-          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gray-700 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gray-700 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
         </div>
-        
+
         <div className="relative bg-black/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-gray-800 animate-fade-in">
           <div className="flex justify-center mb-6">
             <div className="relative">
@@ -457,14 +450,14 @@ export default function UserManager() {
               </div>
             </div>
           </div>
-          
+
           <h1 className="text-4xl font-black text-center bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent mb-2">
             DNMenu Manager
           </h1>
           <p className="text-gray-500 text-center mb-8 font-medium">
             Sistema de Gerenciamento de Acesso
           </p>
-          
+
           <div className="space-y-5">
             <div>
               <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
@@ -479,7 +472,7 @@ export default function UserManager() {
                 placeholder="seu@email.com"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
                 Senha
@@ -493,13 +486,13 @@ export default function UserManager() {
                 placeholder="••••••••"
               />
             </div>
-            
+
             {error && (
               <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm font-medium animate-shake">
                 {error}
               </div>
             )}
-            
+
             <button
               onClick={handleLogin}
               disabled={isLoading}
@@ -527,7 +520,6 @@ export default function UserManager() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 p-6 animate-fade-in">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="bg-black/60 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-6 border border-gray-800 transform hover:scale-[1.01] transition-all duration-300">
           <div className="flex justify-between items-center flex-wrap gap-4">
             <div className="flex items-center gap-4">
@@ -541,20 +533,19 @@ export default function UserManager() {
                 <p className="text-gray-500 text-sm font-medium">Sistema de Controle de Acesso Roblox</p>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={exportToGitHub}
                 disabled={saveStatus === 'salvando'}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 font-bold shadow-lg ${
-                  saveStatus === 'salvando' 
-                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                    : saveStatus === 'erro' 
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 font-bold shadow-lg ${saveStatus === 'salvando'
+                  ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                  : saveStatus === 'erro'
                     ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-500 hover:to-red-600'
                     : saveStatus === 'salvo'
-                    ? 'bg-gradient-to-r from-green-600 to-green-700 text-white'
-                    : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white'
-                }`}
+                      ? 'bg-gradient-to-r from-green-600 to-green-700 text-white'
+                      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white'
+                  }`}
               >
                 {saveStatus === 'salvando' ? (
                   <>
@@ -578,7 +569,7 @@ export default function UserManager() {
                   </>
                 )}
               </button>
-              
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 font-bold shadow-lg"
@@ -590,33 +581,28 @@ export default function UserManager() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex-1 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 ${
-              activeTab === 'users'
-                ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-xl'
-                : 'bg-gray-900/50 text-gray-500 hover:bg-gray-900/70 border border-gray-800'
-            }`}
+            className={`flex-1 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 ${activeTab === 'users'
+              ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-xl'
+              : 'bg-gray-900/50 text-gray-500 hover:bg-gray-900/70 border border-gray-800'
+              }`}
           >
             Users ({users.length})
           </button>
           <button
             onClick={() => setActiveTab('usersfarm')}
-            className={`flex-1 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 ${
-              activeTab === 'usersfarm'
-                ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-xl'
-                : 'bg-gray-900/50 text-gray-500 hover:bg-gray-900/70 border border-gray-800'
-            }`}
+            className={`flex-1 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 ${activeTab === 'usersfarm'
+              ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-xl'
+              : 'bg-gray-900/50 text-gray-500 hover:bg-gray-900/70 border border-gray-800'
+              }`}
           >
             Users Farm ({usersFarm.length})
           </button>
         </div>
 
-        {/* Main Content */}
         <div className="bg-black/60 backdrop-blur-xl rounded-3xl shadow-2xl p-6 border border-gray-800">
-          {/* Add User Section */}
           <div className="mb-6 space-y-4">
             <div className="flex gap-3">
               <input
@@ -635,8 +621,7 @@ export default function UserManager() {
                 Adicionar
               </button>
             </div>
-            
-            {/* Duration Selector */}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { value: 'daily', label: 'Diário', icon: <Clock className="w-4 h-4" /> },
@@ -647,11 +632,10 @@ export default function UserManager() {
                 <button
                   key={dur.value}
                   onClick={() => activeTab === 'users' ? setSelectedDuration(dur.value) : setSelectedDurationFarm(dur.value)}
-                  className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 ${
-                    (activeTab === 'users' ? selectedDuration : selectedDurationFarm) === dur.value
-                      ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-lg'
-                      : 'bg-gray-900/30 text-gray-500 hover:bg-gray-900/50 border border-gray-800'
-                  }`}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 ${(activeTab === 'users' ? selectedDuration : selectedDurationFarm) === dur.value
+                    ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-lg'
+                    : 'bg-gray-900/30 text-gray-500 hover:bg-gray-900/50 border border-gray-800'
+                    }`}
                 >
                   {dur.icon}
                   {dur.label}
@@ -660,12 +644,11 @@ export default function UserManager() {
             </div>
           </div>
 
-          {/* User List */}
           <div className="space-y-3">
             <h3 className="text-xl font-black text-gray-300 mb-4">
               Lista de Usuários - {activeTab === 'users' ? 'Users' : 'Users Farm'}
             </h3>
-            
+
             {currentList.length === 0 ? (
               <div className="text-center py-20 text-gray-600">
                 <Drama className="w-16 h-16 mx-auto mb-4 opacity-20" />
@@ -697,7 +680,6 @@ export default function UserManager() {
             )}
           </div>
 
-          {/* Export Preview */}
           <div className="mt-8 pt-6 border-t border-gray-800">
             <details className="cursor-pointer group">
               <summary className="text-gray-400 hover:text-gray-200 transition-all duration-300 font-bold text-lg list-none">
@@ -721,7 +703,7 @@ export default function UserManager() {
           </div>
         </div>
       </div>
-      
+
       <style>{`
         @keyframes fade-in {
           from {
