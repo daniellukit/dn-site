@@ -99,21 +99,8 @@ export default function UserManager() {
     };
   }, [authToken, fetchUsersFromServer, validateToken]);
 
-  const calculateExpiration = (duration) => {
-    const now = new Date();
-    switch (duration) {
-      case 'daily':
-        return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-      case 'weekly':
-        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      case 'monthly':
-        return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      case 'lifetime':
-        return null;
-      default:
-        return null;
-    }
-  };
+  // ✅ FUNÇÃO REMOVIDA - calculateExpiration não estava sendo usada
+  // Se precisar no futuro, o backend já calcula a expiração
 
   const checkExpirations = () => {
     const now = new Date();
