@@ -11,7 +11,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://dnmenu.vercel.app'],
   credentials: true
 }));
 
@@ -63,17 +63,17 @@ let usersFarm = loadUsers(usersFarmFile);
 // Limpar usuários expirados periodicamente
 setInterval(() => {
   const now = new Date();
-  
+
   users = users.filter(u => {
     if (!u.expiration) return true;
     return new Date(u.expiration) > now;
   });
-  
+
   usersFarm = usersFarm.filter(u => {
     if (!u.expiration) return true;
     return new Date(u.expiration) > now;
   });
-  
+
   saveUsers(usersFile, users);
   saveUsers(usersFarmFile, usersFarm);
 }, 60000); // A cada 1 minuto
@@ -95,11 +95,11 @@ function generateToken() {
 
 function verifyToken(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
-  
+
   if (!token || !validTokens.has(token)) {
     return res.status(401).json({ error: 'Não autorizado' });
   }
-  
+
   next();
 }
 
@@ -113,19 +113,19 @@ app.post('/api/login', loginLimiter, (req, res) => {
   }
 
   const passwordHash = hashPassword(password);
-  
+
   if (email === ADMIN_EMAIL && passwordHash === ADMIN_PASSWORD_HASH) {
     const token = generateToken();
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
-    
+
     validTokens.set(token, { expiresAt });
-    
+
     for (const [key, value] of validTokens.entries()) {
       if (value.expiresAt < Date.now()) {
         validTokens.delete(key);
       }
     }
-    
+
     return res.json({
       token,
       expiresIn: 24 * 60 * 60
@@ -170,7 +170,7 @@ app.post('/api/users/add', verifyToken, (req, res) => {
 
   const calculateExpiration = (dur) => {
     const now = new Date();
-    switch(dur) {
+    switch (dur) {
       case 'daily':
         return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
       case 'weekly':
@@ -193,7 +193,7 @@ app.post('/api/users/add', verifyToken, (req, res) => {
 
   users.push(newUser);
   saveUsers(usersFile, users);
-  
+
   res.status(201).json({ success: true, user: newUser });
 });
 
@@ -210,7 +210,7 @@ app.post('/api/usersfarm/add', verifyToken, (req, res) => {
 
   const calculateExpiration = (dur) => {
     const now = new Date();
-    switch(dur) {
+    switch (dur) {
       case 'daily':
         return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
       case 'weekly':
@@ -233,42 +233,42 @@ app.post('/api/usersfarm/add', verifyToken, (req, res) => {
 
   usersFarm.push(newUser);
   saveUsers(usersFarmFile, usersFarm);
-  
+
   res.status(201).json({ success: true, user: newUser });
 });
 
 // Remover usuário
 app.delete('/api/users/:username', verifyToken, (req, res) => {
   const { username } = req.params;
-  
+
   const initialLength = users.length;
   users = users.filter(u => u.username !== username);
-  
+
   if (users.length < initialLength) {
     saveUsers(usersFile, users);
     return res.json({ success: true });
   }
-  
+
   res.status(404).json({ error: 'Usuário não encontrado' });
 });
 
 app.delete('/api/usersfarm/:username', verifyToken, (req, res) => {
   const { username } = req.params;
-  
+
   const initialLength = usersFarm.length;
   usersFarm = usersFarm.filter(u => u.username !== username);
-  
+
   if (usersFarm.length < initialLength) {
     saveUsers(usersFarmFile, usersFarm);
     return res.json({ success: true });
   }
-  
+
   res.status(404).json({ error: 'Usuário não encontrado' });
 });
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     users: users.length,
     usersFarm: usersFarm.length
@@ -279,7 +279,7 @@ app.get('/api/health', (req, res) => {
 });
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     users: users.length,
     usersFarm: usersFarm.length
