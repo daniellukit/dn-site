@@ -177,7 +177,7 @@ export default function UserManager() {
     if (!window.confirm(`Remover ${username}?`)) return;
 
     try {
-      const endpoint = list === 'users' ? `/users/${username}` : '/usersfarm/${username}';
+      const endpoint = list === 'users' ? `/users/${username}` : `/usersfarm/${username}`;
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -227,10 +227,10 @@ export default function UserManager() {
 
   const getDurationColor = (duration) => {
     switch (duration) {
-      case 'daily': return 'text-purple-300';
+      case 'daily': return 'text-pink-400';
       case 'weekly': return 'text-purple-400';
-      case 'monthly': return 'text-purple-500';
-      case 'lifetime': return 'text-purple-600';
+      case 'monthly': return 'text-violet-400';
+      case 'lifetime': return 'text-fuchsia-400';
       default: return 'text-gray-400';
     }
   };
@@ -249,15 +249,15 @@ export default function UserManager() {
 
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-950 to-black flex items-center justify-center p-4 overflow-hidden relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(124,58,237,0.1),transparent)] animate-pulse"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(91,33,182,0.1),transparent)] animate-pulse delay-1000"></div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center p-4 overflow-hidden relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(167,27,155,0.1),transparent)] animate-pulse"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(106,27,154,0.1),transparent)] animate-pulse delay-1000"></div>
         <div className="relative bg-black/40 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md border border-purple-900/30 overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-purple-900 animate-slide"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 animate-slide"></div>
           <div className="flex justify-center mb-6 animate-bounce-slow">
             <Drama className="w-12 h-12 text-purple-400" />
           </div>
-          <h1 className="text-3xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-purple-500 mb-2 animate-gradient-x">
+          <h1 className="text-3xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-300 mb-2 animate-gradient-x">
             DNMenu Manager
           </h1>
           <p className="text-purple-400/70 text-center mb-8">
@@ -268,7 +268,7 @@ export default function UserManager() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300 ease-in-out"
+              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300 ease-in-out"
               placeholder="Email"
               disabled={isLoading}
             />
@@ -276,7 +276,7 @@ export default function UserManager() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300 ease-in-out"
+              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300 ease-in-out"
               placeholder="Senha"
               disabled={isLoading}
             />
@@ -288,15 +288,14 @@ export default function UserManager() {
             <button
               onClick={handleLogin}
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-purple-600 to-purple-900 hover:from-purple-500 to-purple-800 text-white font-medium py-3 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/50"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-3 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/50"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Entrando...
                 </>
               ) : (
-                'Entrar'
+                ''
               )}
             </button>
           </div>
@@ -306,12 +305,12 @@ export default function UserManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 to-black p-8 text-purple-100 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(124,58,237,0.05),transparent)] animate-pulse slow"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(91,33,182,0.05),transparent)] animate-pulse slow delay-2000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black p-8 text-purple-100 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(167,27,155,0.05),transparent)] animate-pulse slow"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(106,27,154,0.05),transparent)] animate-pulse slow delay-2000"></div>
       <div className="max-w-4xl mx-auto relative">
         <header className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-purple-500 flex items-center gap-3 animate-gradient-x">
+          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-300 flex items-center gap-3 animate-gradient-x">
             <Drama className="w-8 h-8 text-purple-400 animate-spin-slow" />
           </h1>
           <div className="flex items-center gap-4">
@@ -330,7 +329,7 @@ export default function UserManager() {
               {saveStatus === 'salvando' ? (
                 <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
               ) : saveStatus === 'salvo' ? (
-                <Check className="w-5 h-5 text-purple-400 animate-bounce" />
+                <Check className="w-5 h-5 text-green-400 animate-bounce" />
               ) : saveStatus === 'erro' ? (
                 <XCircle className="w-5 h-5 text-red-400 animate-shake" />
               ) : (
@@ -341,17 +340,17 @@ export default function UserManager() {
         </header>
 
         <div className="bg-black/40 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-purple-900/30 overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 to-purple-900 animate-slide-fast"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 animate-slide-fast"></div>
           <div className="flex mb-6 gap-4">
             <button
               onClick={() => setActiveTab('users')}
-              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'users' ? 'bg-gradient-to-r from-purple-600 to-purple-900 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
+              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'users' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
             >
               Users
             </button>
             <button
               onClick={() => setActiveTab('usersfarm')}
-              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'usersfarm' ? 'bg-gradient-to-r from-purple-600 to-purple-900 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
+              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'usersfarm' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
             >
               Farm
             </button>
@@ -364,26 +363,19 @@ export default function UserManager() {
               placeholder="Username"
               className="flex-1 bg-black/30 border border-purple-900/50 rounded-xl p-4 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300"
             />
-            <div className="relative">
-              <select
-                value={activeTab === 'users' ? selectedDuration : selectedDurationFarm}
-                onChange={(e) => activeTab === 'users' ? setSelectedDuration(e.target.value) : setSelectedDurationFarm(e.target.value)}
-                className="appearance-none bg-black/30 border border-purple-900/50 rounded-xl p-4 text-purple-100 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300 w-full pr-10"
-              >
-                <option value="daily">Diário</option>
-                <option value="weekly">Semanal</option>
-                <option value="monthly">Mensal</option>
-                <option value="lifetime">Vitalício</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-purple-400">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
+            <select
+              value={activeTab === 'users' ? selectedDuration : selectedDurationFarm}
+              onChange={(e) => activeTab === 'users' ? setSelectedDuration(e.target.value) : setSelectedDurationFarm(e.target.value)}
+              className="bg-black/30 border border-purple-900/50 rounded-xl p-4 text-purple-100 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300"
+            >
+              <option value="daily">Diário</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+              <option value="lifetime">Vitalício</option>
+            </select>
             <button
               onClick={addUser}
-              className="p-4 bg-gradient-to-r from-purple-600 to-purple-900 hover:from-purple-500 to-purple-800 text-white rounded-xl transition-all duration-300 transform hover:scale-110 shadow-md hover:shadow-purple-500/50"
+              className="p-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 to-pink-500 text-white rounded-xl transition-all duration-300 transform hover:scale-110 shadow-md hover:shadow-purple-500/50"
               title="Adicionar"
             >
               <UserPlus className="w-5 h-5" />
@@ -403,7 +395,7 @@ export default function UserManager() {
                   <div>
                     <p className="font-medium text-lg text-purple-100">{user.username}</p>
                     <p className="text-sm text-purple-400">
-                      Expira: <span className="text-purple-300">{formatTimeRemaining(user.expiration)}</span>
+                      Expira: <span className="text-pink-300">{formatTimeRemaining(user.expiration)}</span>
                     </p>
                   </div>
                 </div>
