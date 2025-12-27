@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Drama, UserPlus, Trash2, LogOut, Calendar, Clock, Infinity, XCircle, Github, Loader2, Check } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Drama, UserPlus, Trash2, Save, LogOut, Calendar, Clock, Infinity, CheckCircle, XCircle, Search } from 'lucide-react';
 
 export default function UserManager() {
   const [email, setEmail] = useState('');
@@ -16,8 +17,9 @@ export default function UserManager() {
   const [showLogin, setShowLogin] = useState(true);
   const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token'));
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // Added for more complexity: search feature
 
-  // API URL
+  // API URL - usa a mesma origem em produção
   const API_URL = '/api';
 
   const fetchUsersFromServer = useCallback(async () => {
@@ -25,49 +27,42 @@ export default function UserManager() {
 
     try {
       const [usersRes, farmRes] = await Promise.all([
-        fetch(`${API_URL}/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
-        fetch(`${API_URL}/usersfarm`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        fetch(`${API_URL}/users`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        }),
+        fetch(`${API_URL}/usersfarm`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        })
       ]);
 
-      if (!usersRes.ok || !farmRes.ok) {
-        if (usersRes.status === 401 || farmRes.status === 401) {
-          alert('Sessão expirada. Faça login novamente.');
-          handleLogout();
-          return;
-        }
-        throw new Error('Erro ao fetch');
+      if (usersRes.ok) {
+        const data = await usersRes.json();
+        setUsers(data.users);
       }
 
-      const usersData = await usersRes.json();
-      setUsers(usersData.users || []);
-
-      const farmData = await farmRes.json();
-      setUsersFarm(farmData.usersFarm || []);
+      if (farmRes.ok) {
+        const data = await farmRes.json();
+        setUsersFarm(data.usersFarm);
+      }
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
     }
   }, [authToken]);
 
   const validateToken = useCallback(async (token) => {
-    if (!token) {
-      setShowLogin(true);
-      return;
-    }
-
     try {
       const response = await fetch(`${API_URL}/validate-token`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          alert('Token expirado. Faça login novamente.');
-        }
+      if (response.ok) {
+        setShowLogin(false);
+      } else {
         localStorage.removeItem('auth_token');
         setAuthToken(null);
         setShowLogin(true);
-      } else {
-        setShowLogin(false);
       }
     } catch (error) {
       console.error('Erro ao validar token:', error);
@@ -76,25 +71,23 @@ export default function UserManager() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      setAuthToken(token);
-      validateToken(token);
+    if (authToken) {
+      validateToken(authToken);
       fetchUsersFromServer();
-    } else {
-      setShowLogin(true);
     }
 
-    const interval = setInterval(() => {
+    const userInterval = setInterval(() => {
       if (authToken) fetchUsersFromServer();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(userInterval);
+    };
   }, [authToken, fetchUsersFromServer, validateToken]);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Email e senha obrigatórios');
+      setError('Email e senha são obrigatórios');
       return;
     }
 
@@ -104,8 +97,13 @@ export default function UserManager() {
     try {
       const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email,
+          password
+        })
       });
 
       if (response.ok) {
@@ -113,24 +111,40 @@ export default function UserManager() {
         localStorage.setItem('auth_token', data.token);
         setAuthToken(data.token);
         setShowLogin(false);
-        fetchUsersFromServer();
+        setError('');
+        setEmail('');
+        setPassword('');
       } else {
         const data = await response.json();
         setError(data.error || 'Falha no login');
       }
     } catch (error) {
-      setError('Erro de conexão');
+      console.error('Erro ao fazer login:', error);
+      setError('Erro de conexão. Verifique sua internet.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (authToken) {
+        await fetch(`${API_URL}/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
+
     localStorage.removeItem('auth_token');
     setAuthToken(null);
     setShowLogin(true);
-    setUsers([]);
-    setUsersFarm([]);
+    setEmail('');
+    setPassword('');
   };
 
   const addUser = async () => {
@@ -139,7 +153,7 @@ export default function UserManager() {
     const duration = list === 'users' ? selectedDuration : selectedDurationFarm;
 
     if (!username) {
-      alert('Insira username');
+      alert('Por favor, insira um username');
       return;
     }
 
@@ -154,49 +168,42 @@ export default function UserManager() {
         body: JSON.stringify({ username, duration })
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          alert('Sessão expirada');
-          handleLogout();
-          return;
-        }
+      if (response.ok) {
+        await fetchUsersFromServer();
+        if (list === 'users') setNewUser('');
+        else setNewUserFarm('');
+        alert(`✅ ${username} adicionado com sucesso!`);
+      } else {
         const data = await response.json();
-        alert(`Erro: ${data.error}`);
-        return;
+        alert(`❌ Erro: ${data.error}`);
       }
-
-      fetchUsersFromServer();
-      list === 'users' ? setNewUser('') : setNewUserFarm('');
-      alert('Adicionado!');
     } catch (error) {
-      alert('Erro ao adicionar');
+      console.error('Erro ao adicionar usuário:', error);
+      alert('❌ Erro ao adicionar usuário');
     }
   };
 
   const removeUser = async (list, username) => {
-    if (!window.confirm(`Remover ${username}?`)) return;
+    if (!window.confirm(`Tem certeza que deseja remover ${username}?`)) return;
 
     try {
       const endpoint = list === 'users' ? `/users/${username}` : `/usersfarm/${username}`;
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authToken}` }
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          alert('Sessão expirada');
-          handleLogout();
-          return;
-        }
-        alert('Erro ao remover');
-        return;
+      if (response.ok) {
+        await fetchUsersFromServer();
+        alert(`✅ ${username} removido com sucesso!`);
+      } else {
+        alert('❌ Erro ao remover usuário');
       }
-
-      fetchUsersFromServer();
-      alert('Removido!');
     } catch (error) {
-      alert('Erro ao remover');
+      console.error('Erro ao remover usuário:', error);
+      alert('❌ Erro ao remover usuário');
     }
   };
 
@@ -212,7 +219,8 @@ export default function UserManager() {
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 
-    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h`;
   };
 
   const getDurationIcon = (duration) => {
@@ -227,190 +235,358 @@ export default function UserManager() {
 
   const getDurationColor = (duration) => {
     switch (duration) {
-      case 'daily': return 'text-pink-400';
-      case 'weekly': return 'text-purple-400';
-      case 'monthly': return 'text-violet-400';
-      case 'lifetime': return 'text-fuchsia-400';
+      case 'daily': return 'text-yellow-400';
+      case 'weekly': return 'text-blue-400';
+      case 'monthly': return 'text-purple-400';
+      case 'lifetime': return 'text-green-400';
       default: return 'text-gray-400';
     }
   };
 
   const exportToGitHub = async () => {
     setSaveStatus('salvando');
-    try {
-      // Código do export igual ao anterior, omitido por brevidade
-      setSaveStatus('salvo');
-    } catch (error) {
+
+    const GITHUB_TOKEN = process.env.REACT_APP_GITHUB_TOKEN || '';
+    const REPO_OWNER = 'Aephic';
+    const REPO_NAME = 'dnmenu';
+    const BRANCH = 'main';
+
+    if (!GITHUB_TOKEN) {
+      alert('Token do GitHub não configurado. Configure REACT_APP_GITHUB_TOKEN nas variáveis de ambiente.');
       setSaveStatus('erro');
-    } finally {
+      setTimeout(() => setSaveStatus(''), 3000);
+      return;
+    }
+
+    try {
+      const usersContent = users.map(u => u.username).join('\n');
+      const usersFarmContent = usersFarm.map(u => u.username).join('\n');
+
+      console.log('Iniciando sincronização com GitHub...');
+
+      const usersGetResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
+        {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+          }
+        }
+      );
+
+      if (!usersGetResponse.ok) {
+        throw new Error(`Erro ao buscar arquivo users: ${usersGetResponse.status}`);
+      }
+
+      const usersData = await usersGetResponse.json();
+
+      const usersPutResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({
+            message: 'Atualizar lista de usuários via DNMenu Manager',
+            content: btoa(unescape(encodeURIComponent(usersContent))),
+            branch: BRANCH,
+            sha: usersData.sha
+          })
+        }
+      );
+
+      if (!usersPutResponse.ok) {
+        throw new Error(`Erro ao atualizar users: ${usersPutResponse.status}`);
+      }
+
+      const usersFarmGetResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
+        {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+          }
+        }
+      );
+
+      if (!usersFarmGetResponse.ok) {
+        throw new Error(`Erro ao buscar arquivo usersfarm: ${usersFarmGetResponse.status}`);
+      }
+
+      const usersFarmData = await usersFarmGetResponse.json();
+
+      const usersFarmPutResponse = await fetch(
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({
+            message: 'Atualizar lista de usersfarm via DNMenu Manager',
+            content: btoa(unescape(encodeURIComponent(usersFarmContent))),
+            branch: BRANCH,
+            sha: usersFarmData.sha
+          })
+        }
+      );
+
+      if (!usersFarmPutResponse.ok) {
+        throw new Error(`Erro ao atualizar usersfarm: ${usersFarmPutResponse.status}`);
+      }
+
+      console.log('Sincronização completa!');
+      setSaveStatus('salvo');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (error) {
+      console.error('Erro ao salvar no GitHub:', error);
+      alert(`Erro ao sincronizar com GitHub: ${error.message}\n\nVerifique o console para mais detalhes.`);
+      setSaveStatus('erro');
       setTimeout(() => setSaveStatus(''), 3000);
     }
   };
 
+  const filteredUsers = (activeTab === 'users' ? users : usersFarm).filter(user =>
+    user.username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center p-4 overflow-hidden relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(167,27,155,0.1),transparent)] animate-pulse"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(106,27,154,0.1),transparent)] animate-pulse delay-1000"></div>
-        <div className="relative bg-black/40 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md border border-purple-900/30 overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 animate-slide"></div>
-          <div className="flex justify-center mb-6 animate-bounce-slow">
-            <Drama className="w-12 h-12 text-purple-400" />
+      <motion.div
+        className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center p-4 overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-purple-800 rounded-full opacity-10 blur-3xl animate-pulse-slow"></div>
+          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-purple-700 rounded-full opacity-10 blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-900/20 to-transparent animate-slide"></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent to-purple-900/20 animate-slide-fast"></div>
+        </div>
+
+        <motion.div
+          className="relative bg-black/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-purple-800 animate-glow"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <div className="flex justify-center mb-6">
+            <motion.div
+              className="relative"
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="absolute inset-0 bg-purple-600 rounded-full blur-xl opacity-50 animate-pulse-slow"></div>
+              <div className="relative bg-gradient-to-br from-purple-700 to-purple-900 p-5 rounded-full">
+                <Drama className="w-10 h-10 text-purple-300 animate-spin-slow" />
+              </div>
+            </motion.div>
           </div>
-          <h1 className="text-3xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-300 mb-2 animate-gradient-x">
+
+          <h1 className="text-4xl font-black text-center bg-gradient-to-r from-purple-200 to-purple-400 bg-clip-text text-transparent mb-2">
             DNMenu Manager
           </h1>
-          <p className="text-purple-400/70 text-center mb-8">
-            Gerencie com estilo
+          <p className="text-gray-400 text-center mb-8 font-medium">
+            Sistema de Gerenciamento de Acesso
           </p>
-          <div className="space-y-4">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300 ease-in-out"
-              placeholder="Email"
-              disabled={isLoading}
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/30 border border-purple-900/50 rounded-xl p-3 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300 ease-in-out"
-              placeholder="Senha"
-              disabled={isLoading}
-            />
+
+          <div className="space-y-5">
+            <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
+              <label className="block text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-purple-900/50 border border-purple-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-all duration-300 hover:border-purple-600 hover:scale-105"
+                placeholder="seu@email.com"
+              />
+            </motion.div>
+
+            <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
+              <label className="block text-sm font-bold text-gray-300 mb-2 uppercase tracking-wide">
+                Senha
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-purple-900/50 border border-purple-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-all duration-300 hover:border-purple-600 hover:scale-105"
+                placeholder="********"
+              />
+            </motion.div>
+
             {error && (
-              <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-2 text-red-300 text-sm text-center animate-fade-in">
+              <motion.p
+                className="text-red-400 text-sm text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
                 {error}
-              </div>
+              </motion.p>
             )}
-            <button
+
+            <motion.button
               onClick={handleLogin}
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-3 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/50"
+              className="w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white font-bold py-4 rounded-xl hover:from-purple-500 hover:to-purple-600 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2 animate-gradient-x"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                </>
-              ) : (
-                ''
-              )}
-            </button>
+              {isLoading ? 'Entrando...' : 'Entrar'}
+              {isLoading && <Clock className="w-5 h-5 animate-spin" />}
+            </motion.button>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
+  // Main manager interface (more complex with search, cards, animations)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black p-8 text-purple-100 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(167,27,155,0.05),transparent)] animate-pulse slow"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(106,27,154,0.05),transparent)] animate-pulse slow delay-2000"></div>
-      <div className="max-w-4xl mx-auto relative">
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-300 flex items-center gap-3 animate-gradient-x">
-            <Drama className="w-8 h-8 text-purple-400 animate-spin-slow" />
-          </h1>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleLogout}
-              className="p-2 bg-black/40 backdrop-blur-md hover:bg-purple-900/30 text-purple-300 rounded-full transition-all duration-300 transform hover:scale-110 hover:rotate-3 border border-purple-900/30 shadow-md hover:shadow-purple-500/30"
-              title="Sair"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-            <button
-              onClick={exportToGitHub}
-              className="p-2 bg-black/40 backdrop-blur-md hover:bg-purple-900/30 rounded-full transition-all duration-300 transform hover:scale-110 hover:rotate-3 border border-purple-900/30 shadow-md hover:shadow-purple-500/30"
-              title="Sincronizar GitHub"
-            >
-              {saveStatus === 'salvando' ? (
-                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-              ) : saveStatus === 'salvo' ? (
-                <Check className="w-5 h-5 text-green-400 animate-bounce" />
-              ) : saveStatus === 'erro' ? (
-                <XCircle className="w-5 h-5 text-red-400 animate-shake" />
-              ) : (
-                <Github className="w-5 h-5 text-purple-300" />
-              )}
-            </button>
-          </div>
-        </header>
+    <motion.div
+      className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 p-6 overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.8 }}
+    >
+      <div className="absolute inset-0 overflow-hidden opacity-50">
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-purple-800 rounded-full blur-3xl animate-bounce-slow"></div>
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-purple-700 rounded-full blur-3xl animate-bounce-slow" style={{ animationDelay: '0.5s' }}></div>
+      </div>
 
-        <div className="bg-black/40 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-purple-900/30 overflow-hidden relative">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500 animate-slide-fast"></div>
-          <div className="flex mb-6 gap-4">
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'users' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
-            >
-              Users
-            </button>
-            <button
-              onClick={() => setActiveTab('usersfarm')}
-              className={`flex-1 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${activeTab === 'usersfarm' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg' : 'bg-black/30 text-purple-300 hover:bg-purple-900/30 border border-purple-900/50'}`}
-            >
-              Farm
-            </button>
-          </div>
+      <header className="relative flex justify-between items-center mb-10">
+        <motion.h1
+          className="text-4xl font-black bg-gradient-to-r from-purple-200 to-purple-400 bg-clip-text text-transparent"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          DNMenu Manager
+        </motion.h1>
+        <motion.button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-gray-300 hover:text-purple-300 transition-colors"
+          whileHover={{ scale: 1.1 }}
+        >
+          <LogOut className="w-5 h-5" />
+          Sair
+        </motion.button>
+      </header>
 
-          <div className="mb-6 flex gap-4">
+      <motion.div
+        className="flex gap-6 mb-8"
+        initial={{ x: -50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.3 }}
+      >
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'users' ? 'bg-purple-700 text-white shadow-lg' : 'bg-purple-900/50 text-gray-300 hover:bg-purple-800'}`}
+        >
+          Users
+        </button>
+        <button
+          onClick={() => setActiveTab('usersFarm')}
+          className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'usersFarm' ? 'bg-purple-700 text-white shadow-lg' : 'bg-purple-900/50 text-gray-300 hover:bg-purple-800'}`}
+        >
+          Users Farm
+        </button>
+      </motion.div>
+
+      <motion.div
+        className="bg-black/60 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-purple-800 animate-glow"
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div className="flex flex-col gap-6 mb-6">
+          <div className="flex gap-4">
             <input
               value={activeTab === 'users' ? newUser : newUserFarm}
               onChange={(e) => activeTab === 'users' ? setNewUser(e.target.value) : setNewUserFarm(e.target.value)}
-              placeholder="Username"
-              className="flex-1 bg-black/30 border border-purple-900/50 rounded-xl p-4 text-purple-100 placeholder-purple-400/50 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300"
+              className="flex-1 bg-purple-900/50 border border-purple-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-all duration-300 hover:scale-105"
+              placeholder="Adicionar username"
             />
             <select
               value={activeTab === 'users' ? selectedDuration : selectedDurationFarm}
               onChange={(e) => activeTab === 'users' ? setSelectedDuration(e.target.value) : setSelectedDurationFarm(e.target.value)}
-              className="bg-black/30 border border-purple-900/50 rounded-xl p-4 text-purple-100 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300"
+              className="bg-purple-900/50 border border-purple-700 rounded-xl p-4 text-gray-200 focus:border-purple-500 focus:outline-none transition-all duration-300 hover:scale-105"
             >
               <option value="daily">Diário</option>
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensal</option>
               <option value="lifetime">Vitalício</option>
             </select>
-            <button
+            <motion.button
               onClick={addUser}
-              className="p-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 to-pink-500 text-white rounded-xl transition-all duration-300 transform hover:scale-110 shadow-md hover:shadow-purple-500/50"
-              title="Adicionar"
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-4 rounded-xl hover:from-purple-500 hover:to-purple-600 flex items-center gap-2 animate-gradient-x"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               <UserPlus className="w-5 h-5" />
-            </button>
+              Adicionar
+            </motion.button>
           </div>
 
-          <div className="space-y-3">
-            {(activeTab === 'users' ? users : usersFarm).map((user) => (
-              <div
-                key={user.username}
-                className="bg-black/30 border border-purple-900/50 rounded-xl p-4 flex items-center justify-between hover:border-purple-500 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-purple-500/30"
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-full bg-purple-900/50 ${getDurationColor(user.duration)} transition-all duration-300 transform hover:rotate-12`}>
-                    {getDurationIcon(user.duration)}
-                  </div>
-                  <div>
-                    <p className="font-medium text-lg text-purple-100">{user.username}</p>
-                    <p className="text-sm text-purple-400">
-                      Expira: <span className="text-pink-300">{formatTimeRemaining(user.expiration)}</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => removeUser(activeTab, user.username)}
-                  className="text-red-400 hover:text-red-300 transition-all duration-300 transform hover:scale-125"
-                  title="Remover"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
+          <div className="relative">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-purple-900/50 border border-purple-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-all duration-300 pl-10"
+              placeholder="Buscar usuário..."
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
           </div>
         </div>
-      </div>
-    </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredUsers.map((user, index) => (
+            <motion.div
+              key={user.username}
+              className="bg-purple-900/30 border border-purple-800 p-6 rounded-xl flex flex-col justify-between transition-all hover:bg-purple-900/50 hover:shadow-purple-500/20 hover:scale-105"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <div className="flex justify-between items-start">
+                <span className="text-lg font-bold text-purple-200">{user.username}</span>
+                <motion.button
+                  onClick={() => removeUser(activeTab, user.username)}
+                  className="text-red-400 hover:text-red-300"
+                  whileHover={{ scale: 1.2, rotate: 90 }}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </motion.button>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <span className={getDurationColor(user.duration)}>{formatTimeRemaining(user.expiration)}</span>
+                {getDurationIcon(user.duration)}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      <motion.button
+        onClick={exportToGitHub}
+        className="mt-10 w-full bg-gradient-to-r from-purple-600 to-purple-700 text-white font-bold py-4 rounded-xl hover:from-purple-500 hover:to-purple-600 transition-all duration-300 flex items-center justify-center gap-2 animate-gradient-x"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <Save className="w-5 h-5" />
+        Salvar no GitHub {saveStatus === 'salvando' ? '...' : ''}
+        {saveStatus === 'salvo' && <CheckCircle className="w-5 h-5 text-green-400" />}
+        {saveStatus === 'erro' && <XCircle className="w-5 h-5 text-red-400" />}
+      </motion.button>
+    </motion.div>
   );
 }
