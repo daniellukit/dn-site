@@ -280,23 +280,26 @@ export default function UserManager() {
     user.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const totalUsers = users.length + usersFarm.length;
+  const activeTokens = [...users, ...usersFarm].filter(u => u.expiration === null || new Date(u.expiration) > new Date()).length;
+
   if (!session) {
     return (
       <motion.div
-        className="min-h-screen bg-gradient-to-br from-purple-950 to-black flex items-center justify-center p-4 overflow-hidden"
+        className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 flex items-center justify-center p-4 overflow-hidden relative"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
       >
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-purple-800 rounded-full opacity-20 blur-3xl animate-pulse-slow"></div>
-          <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-purple-600 rounded-full opacity-20 blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-900/30 to-transparent animate-slide"></div>
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent to-purple-900/30 animate-slide-fast"></div>
+          <div className="absolute -top-1/2 -left-1/2 w-[150%] h-[150%] bg-purple-800 rounded-full opacity-20 blur-3xl animate-pulse-slow"></div>
+          <div className="absolute -bottom-1/2 -right-1/2 w-[150%] h-[150%] bg-purple-600 rounded-full opacity-20 blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-900/40 to-transparent animate-slide"></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent to-purple-900/40 animate-slide-fast"></div>
         </div>
 
         <motion.div
-          className="relative bg-gradient-to-br from-purple-900/80 to-black/80 backdrop-blur-2xl rounded-3xl shadow-2xl p-10 w-full max-w-lg border border-purple-700/50 animate-glow"
+          className="relative bg-gradient-to-br from-purple-900/90 to-black/90 backdrop-blur-2xl rounded-3xl shadow-2xl p-12 w-full max-w-xl border border-purple-700/60 animate-glow z-10"
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -307,18 +310,18 @@ export default function UserManager() {
               whileHover={{ scale: 1.05, rotate: 3 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="absolute inset-0 bg-purple-500 rounded-full blur-2xl opacity-40 animate-pulse-slow"></div>
-              <div className="relative bg-gradient-to-br from-purple-800 to-purple-600 p-6 rounded-full shadow-lg">
+              <div className="absolute inset-0 bg-purple-500 rounded-full blur-2xl opacity-50 animate-pulse-slow"></div>
+              <div className="relative bg-gradient-to-br from-purple-800 to-purple-600 p-6 rounded-full shadow-xl">
                 <Drama className="w-12 h-12 text-purple-200 animate-spin-slow" />
               </div>
             </motion.div>
           </div>
 
-          <h1 className="text-5xl font-extrabold text-center bg-gradient-to-r from-purple-300 to-purple-500 bg-clip-text text-transparent mb-3">
+          <h1 className="text-5xl font-extrabold text-center bg-gradient-to-r from-purple-300 to-purple-500 bg-clip-text text-transparent mb-4">
             DNMenu Manager
           </h1>
-          <p className="text-gray-300 text-center mb-10 font-semibold text-lg">
-            Gerencie seus acessos com segurança
+          <p className="text-gray-300 text-center mb-12 font-semibold text-lg tracking-wide">
+            Gerencie seus acessos com segurança e eficiência
           </p>
 
           <div className="space-y-6">
@@ -393,7 +396,7 @@ export default function UserManager() {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-br from-purple-950 to-black p-8 overflow-hidden"
+      className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 p-8 overflow-hidden relative"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
@@ -422,6 +425,21 @@ export default function UserManager() {
         </motion.button>
       </header>
 
+      <motion.div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+        <div className="bg-gradient-to-br from-purple-900/50 to-black/50 p-6 rounded-2xl shadow-lg border border-purple-700/30 text-center">
+          <h3 className="text-2xl font-bold text-purple-300">Usuários Totais</h3>
+          <p className="text-4xl font-extrabold text-white mt-2">{totalUsers}</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-900/50 to-black/50 p-6 rounded-2xl shadow-lg border border-purple-700/30 text-center">
+          <h3 className="text-2xl font-bold text-purple-300">Tokens Ativos</h3>
+          <p className="text-4xl font-extrabold text-white mt-2">{activeTokens}</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-900/50 to-black/50 p-6 rounded-2xl shadow-lg border border-purple-700/30 text-center">
+          <h3 className="text-2xl font-bold text-purple-300">Última Atualização</h3>
+          <p className="text-4xl font-extrabold text-white mt-2">{new Date().toLocaleDateString()}</p>
+        </div>
+      </motion.div>
+
       <motion.div
         className="flex gap-8 mb-10"
         initial={{ x: -50, opacity: 0 }}
@@ -443,7 +461,7 @@ export default function UserManager() {
       </motion.div>
 
       <motion.div
-        className="bg-gradient-to-br from-purple-900/50 to-black/50 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-purple-700/30 animate-glow"
+        className="bg-gradient-to-br from-purple-900/60 to-black/60 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-purple-700/40 animate-glow"
         initial={{ scale: 0.97, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.4 }}
@@ -453,13 +471,13 @@ export default function UserManager() {
             <input
               value={activeTab === 'users' ? newUser : newUserFarm}
               onChange={(e) => activeTab === 'users' ? setNewUser(e.target.value) : setNewUserFarm(e.target.value)}
-              className="flex-1 bg-purple-900/30 border border-purple-600 rounded-2xl p-5 text-gray-100 placeholder-gray-400 focus:border-purple-400 focus:outline-none transition-all duration-300 hover:border-purple-500 hover:scale-102 shadow-sm"
+              className="flex-1 bg-purple-900/40 border border-purple-600 rounded-2xl p-5 text-gray-100 placeholder-gray-400 focus:border-purple-400 focus:outline-none transition-all duration-300 hover:border-purple-500 hover:scale-102 shadow-sm"
               placeholder="Adicionar username"
             />
             <select
               value={activeTab === 'users' ? selectedDuration : selectedDurationFarm}
               onChange={(e) => activeTab === 'users' ? setSelectedDuration(e.target.value) : setSelectedDurationFarm(e.target.value)}
-              className="bg-purple-900/30 border border-purple-600 rounded-2xl p-5 text-gray-100 focus:border-purple-400 focus:outline-none transition-all duration-300 hover:border-purple-500 hover:scale-102 shadow-sm"
+              className="bg-purple-900/40 border border-purple-600 rounded-2xl p-5 text-gray-100 focus:border-purple-400 focus:outline-none transition-all duration-300 hover:border-purple-500 hover:scale-102 shadow-sm"
             >
               <option value="daily">Diário</option>
               <option value="weekly">Semanal</option>
@@ -481,7 +499,7 @@ export default function UserManager() {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-purple-900/30 border border-purple-600 rounded-2xl p-5 text-gray-100 placeholder-gray-400 focus:border-purple-400 focus:outline-none transition-all duration-300 pl-12 shadow-sm"
+              className="w-full bg-purple-900/40 border border-purple-600 rounded-2xl p-5 text-gray-100 placeholder-gray-400 focus:border-purple-400 focus:outline-none transition-all duration-300 pl-12 shadow-sm"
               placeholder="Buscar usuário..."
             />
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
@@ -492,7 +510,7 @@ export default function UserManager() {
           {filteredUsers.map((user, index) => (
             <motion.div
               key={user.username}
-              className="bg-gradient-to-br from-purple-900/40 to-black/40 border border-purple-700/50 p-8 rounded-2xl flex flex-col justify-between transition-all hover:bg-purple-900/60 hover:shadow-purple-400/30 hover:scale-105 shadow-md"
+              className="bg-gradient-to-br from-purple-900/50 to-black/50 border border-purple-700/50 p-8 rounded-2xl flex flex-col justify-between transition-all hover:bg-purple-900/70 hover:shadow-purple-400/40 hover:scale-105 shadow-md animate-glow"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
@@ -508,7 +526,7 @@ export default function UserManager() {
                 </motion.button>
               </div>
               <div className="mt-6 flex items-center gap-3 text-base">
-                <span className={`${getDurationColor(user.duration)} font-semibold`}>{formatTimeRemaining(user.expiration)}</span>
+                <span className={getDurationColor(user.duration) + ' font-semibold'}>{formatTimeRemaining(user.expiration)}</span>
                 {getDurationIcon(user.duration)}
               </div>
             </motion.div>
