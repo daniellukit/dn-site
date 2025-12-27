@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Drama, UserPlus, Trash2, Save, LogOut, Calendar, Clock, Infinity, CheckCircle, XCircle, Search } from 'lucide-react';
+import { supabase } from './supabase';
 
 export default function UserManager() {
   const [email, setEmail] = useState('');
@@ -14,196 +15,171 @@ export default function UserManager() {
   const [selectedDurationFarm, setSelectedDurationFarm] = useState('lifetime');
   const [activeTab, setActiveTab] = useState('users');
   const [saveStatus, setSaveStatus] = useState('');
-  const [showLogin, setShowLogin] = useState(true);
-  const [authToken, setAuthToken] = useState(localStorage.getItem('auth_token'));
+  const [session, setSession] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // Added for more complexity: search feature
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userListId, setUserListId] = useState(null);
 
-  // API URL - usa a mesma origem em produção
-  const API_URL = '/api';
+  const fetchUserLists = useCallback(async () => {
+    if (!session) return;
 
-  const fetchUsersFromServer = useCallback(async () => {
-    if (!authToken) return;
+    const { data, error } = await supabase
+      .from('user_lists')
+      .select('*')
+      .eq('owner_id', session.user.id)
+      .single();
 
-    try {
-      const [usersRes, farmRes] = await Promise.all([
-        fetch(`${API_URL}/users`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        }),
-        fetch(`${API_URL}/usersfarm`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        })
-      ]);
-
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(data.users);
-      }
-
-      if (farmRes.ok) {
-        const data = await farmRes.json();
-        setUsersFarm(data.usersFarm);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar usuários:', error);
+    if (error && error.code !== 'PGRST116') {
+      console.error('Erro ao buscar listas:', error);
+      return;
     }
-  }, [authToken]);
 
-  const validateToken = useCallback(async (token) => {
-    try {
-      const response = await fetch(`${API_URL}/validate-token`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+    if (data) {
+      setUserListId(data.id);
+      const parsedUsers = data.users ? data.users.split(',').map(str => {
+        const [username, duration, expiration] = str.split('|');
+        return { username, duration: duration || 'lifetime', expiration: expiration || null };
+      }) : [];
+      setUsers(parsedUsers);
 
-      if (response.ok) {
-        setShowLogin(false);
+      const parsedFarm = data.users_farm ? data.users_farm.split(',').map(str => {
+        const [username, duration, expiration] = str.split('|');
+        return { username, duration: duration || 'lifetime', expiration: expiration || null };
+      }) : [];
+      setUsersFarm(parsedFarm);
+    } else {
+      const { data: newData, error: insertError } = await supabase
+        .from('user_lists')
+        .insert({ owner_id: session.user.id, users: '', users_farm: '' })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Erro ao criar lista:', insertError);
       } else {
-        localStorage.removeItem('auth_token');
-        setAuthToken(null);
-        setShowLogin(true);
+        setUserListId(newData.id);
+        setUsers([]);
+        setUsersFarm([]);
       }
-    } catch (error) {
-      console.error('Erro ao validar token:', error);
-      setShowLogin(true);
     }
+  }, [session]);
+
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    };
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (authToken) {
-      validateToken(authToken);
-      fetchUsersFromServer();
+    if (session) {
+      fetchUserLists();
     }
-
-    const userInterval = setInterval(() => {
-      if (authToken) fetchUsersFromServer();
-    }, 30000);
-
-    return () => {
-      clearInterval(userInterval);
-    };
-  }, [authToken, fetchUsersFromServer, validateToken]);
+  }, [session, fetchUserLists]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      setError('Email e senha são obrigatórios');
-      return;
-    }
-
     setIsLoading(true);
     setError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    setIsLoading(false);
+  };
 
-    try {
-      const response = await fetch(`${API_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('auth_token', data.token);
-        setAuthToken(data.token);
-        setShowLogin(false);
-        setError('');
-        setEmail('');
-        setPassword('');
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Falha no login');
-      }
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      setError('Erro de conexão. Verifique sua internet.');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSignup = async () => {
+    setIsLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) setError(error.message);
+    else alert('Confirme seu email para ativar a conta!');
+    setIsLoading(false);
   };
 
   const handleLogout = async () => {
-    try {
-      if (authToken) {
-        await fetch(`${API_URL}/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-    }
+    await supabase.auth.signOut();
+    setSession(null);
+    setUsers([]);
+    setUsersFarm([]);
+    setUserListId(null);
+  };
 
-    localStorage.removeItem('auth_token');
-    setAuthToken(null);
-    setShowLogin(true);
-    setEmail('');
-    setPassword('');
+  const calculateExpiration = (duration) => {
+    const now = new Date();
+    if (duration === 'lifetime') return null;
+    if (duration === 'daily') now.setDate(now.getDate() + 1);
+    if (duration === 'weekly') now.setDate(now.getDate() + 7);
+    if (duration === 'monthly') now.setDate(now.getDate() + 30);
+    return now.toISOString();
+  };
+
+  const updateListsInSupabase = async (newUsers, newFarm) => {
+    const usersStr = newUsers.map(u => `${u.username}|${u.duration}|${u.expiration || ''}`).join(',');
+    const farmStr = newFarm.map(u => `${u.username}|${u.duration}|${u.expiration || ''}`).join(',');
+
+    const { error } = await supabase
+      .from('user_lists')
+      .update({ users: usersStr, users_farm: farmStr })
+      .eq('id', userListId);
+
+    if (error) {
+      console.error('Erro ao atualizar listas:', error);
+      alert('❌ Erro ao salvar mudanças');
+      return false;
+    }
+    return true;
   };
 
   const addUser = async () => {
-    const list = activeTab;
-    const username = list === 'users' ? newUser.trim() : newUserFarm.trim();
-    const duration = list === 'users' ? selectedDuration : selectedDurationFarm;
+    const isUsersTab = activeTab === 'users';
+    const username = isUsersTab ? newUser.trim() : newUserFarm.trim();
+    if (!username) return alert('Por favor, insira um username');
 
-    if (!username) {
-      alert('Por favor, insira um username');
-      return;
-    }
+    const duration = isUsersTab ? selectedDuration : selectedDurationFarm;
+    const expiration = calculateExpiration(duration);
 
-    try {
-      const endpoint = list === 'users' ? '/users/add' : '/usersfarm/add';
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ username, duration })
-      });
+    const newEntry = { username, duration, expiration };
+    const currentList = isUsersTab ? users : usersFarm;
+    const newList = [...currentList, newEntry];
 
-      if (response.ok) {
-        await fetchUsersFromServer();
-        if (list === 'users') setNewUser('');
-        else setNewUserFarm('');
-        alert(`✅ ${username} adicionado com sucesso!`);
+    const success = await updateListsInSupabase(
+      isUsersTab ? newList : users,
+      isUsersTab ? usersFarm : newList
+    );
+
+    if (success) {
+      if (isUsersTab) {
+        setUsers(newList);
+        setNewUser('');
       } else {
-        const data = await response.json();
-        alert(`❌ Erro: ${data.error}`);
+        setUsersFarm(newList);
+        setNewUserFarm('');
       }
-    } catch (error) {
-      console.error('Erro ao adicionar usuário:', error);
-      alert('❌ Erro ao adicionar usuário');
+      alert(`✅ ${username} adicionado com sucesso!`);
     }
   };
 
-  const removeUser = async (list, username) => {
+  const removeUser = async (tab, username) => {
     if (!window.confirm(`Tem certeza que deseja remover ${username}?`)) return;
 
-    try {
-      const endpoint = list === 'users' ? `/users/${username}` : `/usersfarm/${username}`;
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
+    const isUsersTab = tab === 'users';
+    const currentList = isUsersTab ? users : usersFarm;
+    const newList = currentList.filter(u => u.username !== username);
 
-      if (response.ok) {
-        await fetchUsersFromServer();
-        alert(`✅ ${username} removido com sucesso!`);
-      } else {
-        alert('❌ Erro ao remover usuário');
-      }
-    } catch (error) {
-      console.error('Erro ao remover usuário:', error);
-      alert('❌ Erro ao remover usuário');
+    const success = await updateListsInSupabase(
+      isUsersTab ? newList : users,
+      isUsersTab ? usersFarm : newList
+    );
+
+    if (success) {
+      if (isUsersTab) setUsers(newList);
+      else setUsersFarm(newList);
+      alert(`✅ ${username} removido com sucesso!`);
     }
   };
 
@@ -252,7 +228,7 @@ export default function UserManager() {
     const BRANCH = 'main';
 
     if (!GITHUB_TOKEN) {
-      alert('Token do GitHub não configurado. Configure REACT_APP_GITHUB_TOKEN nas variáveis de ambiente.');
+      alert('Token do GitHub não configurado.');
       setSaveStatus('erro');
       setTimeout(() => setSaveStatus(''), 3000);
       return;
@@ -262,90 +238,43 @@ export default function UserManager() {
       const usersContent = users.map(u => u.username).join('\n');
       const usersFarmContent = usersFarm.map(u => u.username).join('\n');
 
-      console.log('Iniciando sincronização com GitHub...');
+      const usersGetRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`, {
+        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` }
+      });
+      const usersData = await usersGetRes.json();
 
-      const usersGetResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
-        {
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
-          }
-        }
-      );
+      await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Atualizar users via DNMenu Manager',
+          content: btoa(unescape(encodeURIComponent(usersContent))),
+          branch: BRANCH,
+          sha: usersData.sha
+        })
+      });
 
-      if (!usersGetResponse.ok) {
-        throw new Error(`Erro ao buscar arquivo users: ${usersGetResponse.status}`);
-      }
+      const farmGetRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`, {
+        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` }
+      });
+      const farmData = await farmGetRes.json();
 
-      const usersData = await usersGetResponse.json();
+      await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Atualizar usersfarm via DNMenu Manager',
+          content: btoa(unescape(encodeURIComponent(usersFarmContent))),
+          branch: BRANCH,
+          sha: farmData.sha
+        })
+      });
 
-      const usersPutResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/users`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json',
-          },
-          body: JSON.stringify({
-            message: 'Atualizar lista de usuários via DNMenu Manager',
-            content: btoa(unescape(encodeURIComponent(usersContent))),
-            branch: BRANCH,
-            sha: usersData.sha
-          })
-        }
-      );
-
-      if (!usersPutResponse.ok) {
-        throw new Error(`Erro ao atualizar users: ${usersPutResponse.status}`);
-      }
-
-      const usersFarmGetResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
-        {
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
-          }
-        }
-      );
-
-      if (!usersFarmGetResponse.ok) {
-        throw new Error(`Erro ao buscar arquivo usersfarm: ${usersFarmGetResponse.status}`);
-      }
-
-      const usersFarmData = await usersFarmGetResponse.json();
-
-      const usersFarmPutResponse = await fetch(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/security/usersfarm`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json',
-          },
-          body: JSON.stringify({
-            message: 'Atualizar lista de usersfarm via DNMenu Manager',
-            content: btoa(unescape(encodeURIComponent(usersFarmContent))),
-            branch: BRANCH,
-            sha: usersFarmData.sha
-          })
-        }
-      );
-
-      if (!usersFarmPutResponse.ok) {
-        throw new Error(`Erro ao atualizar usersfarm: ${usersFarmPutResponse.status}`);
-      }
-
-      console.log('Sincronização completa!');
       setSaveStatus('salvo');
       setTimeout(() => setSaveStatus(''), 3000);
     } catch (error) {
-      console.error('Erro ao salvar no GitHub:', error);
-      alert(`Erro ao sincronizar com GitHub: ${error.message}\n\nVerifique o console para mais detalhes.`);
+      console.error('Erro ao exportar para GitHub:', error);
+      alert('❌ Erro ao exportar para GitHub');
       setSaveStatus('erro');
       setTimeout(() => setSaveStatus(''), 3000);
     }
@@ -355,7 +284,7 @@ export default function UserManager() {
     user.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (showLogin) {
+  if (!session) {
     return (
       <motion.div
         className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center p-4 overflow-hidden"
@@ -444,13 +373,22 @@ export default function UserManager() {
               {isLoading ? 'Entrando...' : 'Entrar'}
               {isLoading && <Clock className="w-5 h-5 animate-spin" />}
             </motion.button>
+
+            <motion.button
+              onClick={handleSignup}
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold py-4 rounded-xl hover:from-gray-500 hover:to-gray-600 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {isLoading ? 'Cadastrando...' : 'Cadastrar'}
+            </motion.button>
           </div>
         </motion.div>
       </motion.div>
     );
   }
 
-  // Main manager interface (more complex with search, cards, animations)
   return (
     <motion.div
       className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 p-6 overflow-hidden"
